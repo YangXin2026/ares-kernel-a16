@@ -211,7 +211,9 @@ jobs:
             KernelSU: ${{ inputs.enable_ksu }} (ver ${{ env.KSUVER }})
             BBG: ${{ inputs.enable_bbg }}
             真机: Redmi K40 Gaming (ares / MT6893)
-          files: artifacts/*
+          files: |
+            artifacts/*
+            artifacts/modules/*
           draft: false
 
       - name: 备用 artifact
