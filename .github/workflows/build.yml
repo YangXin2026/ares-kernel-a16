@@ -16,6 +16,11 @@ on:
         type: boolean
         required: true
         default: true
+      enable_gaming:
+        description: '游戏性能化 + 功能堆料 defconfig'
+        type: boolean
+        required: true
+        default: true
       enable_bbg:
         description: '编入 Baseband-guard（可跳过，减少失败点）'
         type: boolean
