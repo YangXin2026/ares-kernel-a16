@@ -12,10 +12,18 @@ on:
         required: true
         default: 'chopin_kvm'
       enable_ksu:
-        description: '编入 KernelSU (ReSukiSU)'
+        description: '编入 KernelSU'
         type: boolean
         required: true
         default: true
+      ksu_variant:
+        description: 'resukisu = 手工 hook（本机推荐，不动 KPROBES）；official = 官方 KSU（必须开 KPROBES，MTK 4.14 上有进救援模式的风险）'
+        required: true
+        default: 'resukisu'
+      ksu_ref:
+        description: 'KernelSU tag/commit —— 必须和管理器 APK 版本一致（ReSukiSU 管理器 v4.2.0-rc3 = 35171）'
+        required: true
+        default: 'v4.2.0-rc3'
       enable_gaming:
         description: '游戏性能化 + 功能堆料 defconfig'
         type: boolean
@@ -105,20 +113,29 @@ jobs:
           head -5 Makefile
           echo "SRC_HEAD=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
 
-      - name: 打入 KernelSU (ReSukiSU)
+      - name: 打入 KernelSU
         if: ${{ inputs.enable_ksu }}
         working-directory: kernel
         run: |
-          curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
-          ls -d KernelSU || true
-          cd KernelSU
-          KSU_VER=$(expr $(git rev-list --count HEAD) "+" 30000 "+" 700)
-          echo "KSUVER=$KSU_VER" >> $GITHUB_ENV
-          sed -i "s/DKSU_VERSION=12800/DKSU_VERSION=${KSU_VER}/" kernel/Makefile || true
-          cd ..
-          patch -p1 --forward < $GITHUB_WORKSPACE/buildfiles/Patches/static-symbol-export.patch || echo "::warning::static-symbol-export 补丁未应用"
-          patch -p1 --forward < $GITHUB_WORKSPACE/buildfiles/Patches/resukisu-scopemin-hooks.patch || echo "::warning::scopemin-hooks 补丁未应用"
-          patch -p1 --forward < $GITHUB_WORKSPACE/buildfiles/Patches/fix_restore_cgroup_file_prefix_handling.patch || echo "::warning::cgroup 补丁未应用"
+          if [ "${{ inputs.ksu_variant }}" = "official" ]; then
+            # 官方 KernelSU：依赖 KPROBES，版本由 tag 决定（管理器必须同 tag）
+            curl -LSs "https://raw.githubusercontent.com/tiann/KernelSU/main/kernel/setup.sh" | bash -s "${{ inputs.ksu_ref }}"
+            ls -d KernelSU
+            ( cd KernelSU && echo "KSUVER=$(git describe --tags --always)" >> $GITHUB_ENV )
+          else
+            # ReSukiSU：4.14 走手工 hook（不开 KPROBES），版本钉到与管理器一致的 tag
+            curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash -s "${{ inputs.ksu_ref }}"
+            ls -d KernelSU || true
+            cd KernelSU
+            KSU_VER=$(git describe --tags --always)
+            echo "KSUVER=$KSU_VER" >> $GITHUB_ENV
+            # 让内核驱动的版本号 = 该 tag 的发布号（与管理器 APK 一致）
+            sed -i "s/DKSU_VERSION=12800/DKSU_VERSION=$(expr $(git rev-list --count HEAD) "+" 30000 "+" 700)/" kernel/Makefile || true
+            cd ..
+            patch -p1 --forward < $GITHUB_WORKSPACE/buildfiles/Patches/static-symbol-export.patch || echo "::warning::static-symbol-export 补丁未应用"
+            patch -p1 --forward < $GITHUB_WORKSPACE/buildfiles/Patches/resukisu-scopemin-hooks.patch || echo "::warning::scopemin-hooks 补丁未应用"
+            patch -p1 --forward < $GITHUB_WORKSPACE/buildfiles/Patches/fix_restore_cgroup_file_prefix_handling.patch || echo "::warning::cgroup 补丁未应用"
+          fi
 
       - name: 打入 Baseband-guard
         if: ${{ inputs.enable_bbg }}
@@ -151,11 +168,20 @@ jobs:
             sed -i '/^CONFIG_BBG=y$/d' arch/arm64/configs/ares_defconfig
           fi
           if [ "${{ inputs.enable_ksu }}" = "true" ]; then
-            {
-              echo 'CONFIG_KSU=y'
-              echo 'CONFIG_KSU_MANUAL_HOOK=y'
-              echo 'CONFIG_KSU_MULTI_MANAGER_SUPPORT=y'
-            } >> arch/arm64/configs/ares_defconfig
+            if [ "${{ inputs.ksu_variant }}" = "official" ]; then
+              {
+                echo 'CONFIG_KPROBES=y'
+                echo 'CONFIG_KPROBE_EVENTS=y'
+                echo 'CONFIG_KRETPROBES=y'
+                echo 'CONFIG_KSU=y'
+              } >> arch/arm64/configs/ares_defconfig
+            else
+              {
+                echo 'CONFIG_KSU=y'
+                echo 'CONFIG_KSU_MANUAL_HOOK=y'
+                echo 'CONFIG_KSU_MULTI_MANAGER_SUPPORT=y'
+              } >> arch/arm64/configs/ares_defconfig
+            fi
           fi
           # 署名：内核版本串与构建者都写 YangXin2026
           {
