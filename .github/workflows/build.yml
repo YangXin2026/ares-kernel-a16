@@ -21,6 +21,14 @@ on:
         type: boolean
         required: true
         default: true
+      gpu_max_freq:
+        description: 'GPU 最高频 KHz（原厂 886000；935000=小超；上限 950000 由时钟路径锁死）'
+        required: true
+        default: '886000'
+      gpu_max_volt:
+        description: 'GPU 最高档电压（mVx100，原厂 80000；935MHz 建议 86250）'
+        required: true
+        default: '80000'
       enable_bbg:
         description: '编入 Baseband-guard（可跳过，减少失败点）'
         type: boolean
@@ -113,6 +121,17 @@ jobs:
         run: |
           wget -O- https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh | bash
           sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/selinux/selinux,baseband_guard/ } }' security/Kconfig
+
+      - name: GPU 最高档超频（改 OPP 表）
+        if: ${{ inputs.gpu_max_freq != '886000' }}
+        working-directory: kernel
+        run: |
+          F=drivers/misc/mediatek/base/power/include/gpufreq_v1/mt6893/mtk_gpufreq_internal_plat.h
+          cp "$F" "$F.bak"
+          sed -i "s/GPUOP(886000, 80000, 80000, POSDIV_POWER_4, 1875)/GPUOP(${{ inputs.gpu_max_freq }}, ${{ inputs.gpu_max_volt }}, ${{ inputs.gpu_max_volt }}, POSDIV_POWER_4, 1875)/g" "$F"
+          echo "=== OPP 表最高档改动 ==="
+          diff -u "$F.bak" "$F" | head -20 || true
+          echo "改动处数: $(grep -c 'GPUOP(${{ inputs.gpu_max_freq }}' "$F")"
 
       - name: 追加 defconfig
         run: |
