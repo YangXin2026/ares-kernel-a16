@@ -138,10 +138,15 @@ jobs:
           diff -u "$F.bak" "$F" | head -20 || true
           echo "改动处数: $(grep -c 'GPUOP(${{ inputs.gpu_max_freq }}' "$F")"
 
-      - name: 追加 defconfig
+      - name: 追加 defconfig + 署名
         run: |
           cd kernel
+          # 基础追加（来自已验证配方）
           cat $GITHUB_WORKSPACE/buildfiles/Patches/ares_user_defconfig_append >> arch/arm64/configs/ares_defconfig
+          # 游戏化/功能堆料（之前漏掉了！）
+          if [ "${{ inputs.enable_gaming }}" = "true" ]; then
+            cat $GITHUB_WORKSPACE/buildfiles/Patches/ares_gaming_defconfig_append >> arch/arm64/configs/ares_defconfig
+          fi
           if [ "${{ inputs.enable_bbg }}" != "true" ]; then
             sed -i '/^CONFIG_BBG=y$/d' arch/arm64/configs/ares_defconfig
           fi
@@ -152,12 +157,19 @@ jobs:
               echo 'CONFIG_KSU_MULTI_MANAGER_SUPPORT=y'
             } >> arch/arm64/configs/ares_defconfig
           fi
-          echo "--- defconfig 尾部 ---"; tail -12 arch/arm64/configs/ares_defconfig
+          # 署名：内核版本串与构建者都写 YangXin2026
+          {
+            echo 'CONFIG_LOCALVERSION="-YangXin2026"'
+            echo 'CONFIG_DEFAULT_HOSTNAME="ares"'
+          } >> arch/arm64/configs/ares_defconfig
+          echo "--- defconfig 尾部 ---"; tail -16 arch/arm64/configs/ares_defconfig
 
       - name: 编译
         working-directory: kernel
         run: |
           export KBUILD_BUILD_TIMESTAMP=$(date)
+          export KBUILD_BUILD_USER=YangXin2026
+          export KBUILD_BUILD_HOST=ares-build
           export PATH=/usr/lib/ccache:$PATH
           make -j$(nproc --all) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
@@ -199,6 +211,37 @@ jobs:
           ls -l $A
           ( cd $A && sha256sum * > SHA256SUMS.txt )
           cat $A/SHA256SUMS.txt
+
+      - name: 打包 AnyKernel3 直刷 zip
+        continue-on-error: true
+        run: |
+          set -e
+          cd $GITHUB_WORKSPACE
+          git clone --depth 1 https://github.com/osm0sis/AnyKernel3 ak3
+          cd ak3
+          rm -rf .git README.md .github
+          if [ -f $GITHUB_WORKSPACE/artifacts/Image.gz-dtb ]; then
+            cp $GITHUB_WORKSPACE/artifacts/Image.gz-dtb ./Image.gz-dtb
+          else
+            cp $GITHUB_WORKSPACE/artifacts/Image.gz ./Image.gz
+          fi
+          cat > anykernel.sh <<'EOF'
+          kernel.string=YangXin2026 ares kernel 4.14.357-openela
+          do.devicecheck=1
+          do.modules=0
+          do.systemless=1
+          do.cleanup=1
+          do.cleanuponabort=0
+          device.name1=ares
+          device.name2=aresin
+          device.name3=M2012K10C
+          supported.versions=12 - 16
+          supported.patchlevels=
+          BLOCK=boot
+          IS_SLOT_DEVICE=1
+          EOF
+          zip -r9 "$GITHUB_WORKSPACE/artifacts/ak3-ares-${KERNELRELEASE}.zip" . -x '*.git*'
+          ls -lh $GITHUB_WORKSPACE/artifacts/
 
       - name: 发布 Release
         uses: softprops/action-gh-release@v2
