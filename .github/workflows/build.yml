@@ -1,0 +1,178 @@
+name: Build ares kernel (4.14.357)
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_repo:
+        description: '内核源码仓库'
+        required: true
+        default: 'seriaTvT/kernel_mt6893'
+      source_ref:
+        description: '源码分支（chopin_kvm = 4.14.357, 支持 ares）'
+        required: true
+        default: 'chopin_kvm'
+      enable_ksu:
+        description: '编入 KernelSU (ReSukiSU)'
+        type: boolean
+        required: true
+        default: true
+      enable_bbg:
+        description: '编入 Baseband-guard（可跳过，减少失败点）'
+        type: boolean
+        required: true
+        default: false
+      release_tag:
+        description: 'Release 标签（留空=自动）'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      CCACHE_DIR: /home/runner/.ccache
+      CCACHE_MAXSIZE: 8G
+      CCACHE_NOHASHDIR: "true"
+      SOURCE_REPO: ${{ inputs.source_repo }}
+      SOURCE_REF: ${{ inputs.source_ref }}
+    steps:
+      - name: 腾出磁盘空间
+        uses: easimon/maximize-build-space@master
+        with:
+          root-reserve-mb: 8192
+          temp-reserve-mb: 2048
+          remove-dotnet: 'true'
+          remove-android: 'true'
+          remove-haskell: 'true'
+          remove-codeql: 'true'
+
+      - name: 安装依赖
+        run: sudo apt-get update && sudo apt-get install -y p7zip-full ccache git curl
+
+      - name: 恢复 ccache
+        uses: actions/cache@v4
+        with:
+          path: /home/runner/.ccache
+          key: ccache-${{ inputs.source_repo }}-${{ inputs.source_ref }}-${{ github.run_number }}
+          restore-keys: |
+            ccache-${{ inputs.source_repo }}-${{ inputs.source_ref }}-
+
+      - name: 取出我们的补丁/配置
+        uses: actions/checkout@v4
+        with:
+          path: buildfiles
+
+      - name: 拉内核源码
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.source_repo }}
+          ref: ${{ inputs.source_ref }}
+          path: kernel
+          fetch-depth: 1
+
+      - name: 工具链 (Mandi-Sa llvm23)
+        run: |
+          mkdir -p toolchain && cd toolchain
+          wget -q https://github.com/Mandi-Sa/clang/releases/download/amd64-kernel-arm_static-23/llvm23.0.0-binutils2.45.1_amd64-kernel-arm_static-20260224.7z
+          7za x -bso0 -bsp0 llvm23.0.0-binutils2.45.1_amd64-kernel-arm_static-20260224.7z
+          rm -f *.7z
+          echo "$PWD/bin" >> $GITHUB_PATH
+
+      - name: 内核信息（源码版本）
+        working-directory: kernel
+        run: |
+          head -5 Makefile
+          echo "SRC_HEAD=$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+
+      - name: 打入 KernelSU (ReSukiSU)
+        if: ${{ inputs.enable_ksu }}
+        working-directory: kernel
+        run: |
+          curl -LSs "https://raw.githubusercontent.com/ReSukiSU/ReSukiSU/main/kernel/setup.sh" | bash
+          ls -d KernelSU || true
+          cd KernelSU
+          KSU_VER=$(expr $(git rev-list --count HEAD) "+" 30000 "+" 700)
+          echo "KSUVER=$KSU_VER" >> $GITHUB_ENV
+          sed -i "s/DKSU_VERSION=12800/DKSU_VERSION=${KSU_VER}/" kernel/Makefile || true
+          cd ..
+          patch -p1 --forward < $GITHUB_WORKSPACE/buildfiles/Patches/static-symbol-export.patch || echo "::warning::static-symbol-export 补丁未应用"
+          patch -p1 --forward < $GITHUB_WORKSPACE/buildfiles/Patches/resukisu-scopemin-hooks.patch || echo "::warning::scopemin-hooks 补丁未应用"
+          patch -p1 --forward < $GITHUB_WORKSPACE/buildfiles/Patches/fix_restore_cgroup_file_prefix_handling.patch || echo "::warning::cgroup 补丁未应用"
+
+      - name: 打入 Baseband-guard
+        if: ${{ inputs.enable_bbg }}
+        working-directory: kernel
+        run: |
+          wget -O- https://github.com/vc-teahouse/Baseband-guard/raw/main/setup.sh | bash
+          sed -i '/^config LSM$/,/^help$/{ /^[[:space:]]*default/ { /baseband_guard/! s/selinux/selinux,baseband_guard/ } }' security/Kconfig
+
+      - name: 追加 defconfig
+        run: |
+          cd kernel
+          cat $GITHUB_WORKSPACE/buildfiles/Patches/ares_user_defconfig_append >> arch/arm64/configs/ares_defconfig
+          if [ "${{ inputs.enable_bbg }}" != "true" ]; then
+            sed -i '/^CONFIG_BBG=y$/d' arch/arm64/configs/ares_defconfig
+          fi
+          if [ "${{ inputs.enable_ksu }}" = "true" ]; then
+            {
+              echo 'CONFIG_KSU=y'
+              echo 'CONFIG_KSU_MANUAL_HOOK=y'
+              echo 'CONFIG_KSU_MULTI_MANAGER_SUPPORT=y'
+            } >> arch/arm64/configs/ares_defconfig
+          fi
+          echo "--- defconfig 尾部 ---"; tail -12 arch/arm64/configs/ares_defconfig
+
+      - name: 编译
+        working-directory: kernel
+        run: |
+          export KBUILD_BUILD_TIMESTAMP=$(date)
+          export PATH=/usr/lib/ccache:$PATH
+          make -j$(nproc --all) O=out ARCH=arm64 LLVM=1 \
+            CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            CC=clang LD=ld.lld HOSTLD=ld.lld KCFLAGS+=-O2 ares_defconfig all 2>&1 | tail -60
+          echo "=== 产物 ==="
+          ls -l out/arch/arm64/boot/ || true
+          ls -l out/arch/arm64/boot/dts/mediatek/ 2>/dev/null | head -20 || true
+          echo "KERNELRELEASE=$(cat out/include/config/kernel.release 2>/dev/null || make -s O=out kernelrelease)" >> $GITHUB_ENV
+
+      - name: 打包产物
+        working-directory: kernel
+        run: |
+          set -e
+          mkdir -p $GITHUB_WORKSPACE/artifacts
+          A=$GITHUB_WORKSPACE/artifacts
+          test -f out/arch/arm64/boot/Image && cp out/arch/arm64/boot/Image $A/Image
+          if [ -f out/arch/arm64/boot/Image.gz ]; then cp out/arch/arm64/boot/Image.gz $A/Image.gz; else gzip -9 -c out/arch/arm64/boot/Image > $A/Image.gz; fi
+          if [ -f out/arch/arm64/boot/Image.gz-dtb ]; then cp out/arch/arm64/boot/Image.gz-dtb $A/; fi
+          for f in out/arch/arm64/boot/dts/mediatek/dtb.img out/arch/arm64/boot/dts/mediatek/ares.dtb out/arch/arm64/boot/dts/mediatek/mt6893.dtb; do
+            [ -f "$f" ] && cp "$f" $A/ || true
+          done
+          cp out/arch/arm64/boot/System.map $A/ 2>/dev/null || true
+          cp out/.config $A/config 2>/dev/null || true
+          ls -l $A
+          ( cd $A && sha256sum * > SHA256SUMS.txt )
+          cat $A/SHA256SUMS.txt
+
+      - name: 发布 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ inputs.release_tag != '' && inputs.release_tag || format('build-{0}{1}', env.KSUVER || 'noksu', github.run_number) }}
+          name: "ares kernel ${{ env.KERNELRELEASE }} (KSU=${{ inputs.enable_ksu }})"
+          body: |
+            源码: ${{ inputs.source_repo }}@${{ inputs.source_ref }}  源码HEAD: ${{ env.SRC_HEAD }}
+            版本: ${{ env.KERNELRELEASE }}
+            KernelSU: ${{ inputs.enable_ksu }} (ver ${{ env.KSUVER }})
+            BBG: ${{ inputs.enable_bbg }}
+            真机: Redmi K40 Gaming (ares / MT6893)
+          files: artifacts/*
+          draft: false
+
+      - name: 备用 artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ares-kernel-${{ env.KERNELRELEASE }}
+          path: artifacts/*
+          compression-level: 9
