@@ -193,13 +193,16 @@ jobs:
       - name: 编译
         working-directory: kernel
         run: |
+          set -o pipefail
+          mkdir -p $GITHUB_WORKSPACE/artifacts
           export KBUILD_BUILD_TIMESTAMP=$(date)
           export KBUILD_BUILD_USER=YangXin2026
           export KBUILD_BUILD_HOST=ares-build
           export PATH=/usr/lib/ccache:$PATH
           make -j$(nproc --all) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            CC=clang LD=ld.lld HOSTLD=ld.lld KCFLAGS+=-O2 ares_defconfig all 2>&1 | tail -60
+            CC=clang LD=ld.lld HOSTLD=ld.lld KCFLAGS+=-O2 ares_defconfig all 2>&1 \
+            | tee -a $GITHUB_WORKSPACE/artifacts/build.log | tail -80
           echo "=== 产物 ==="
           ls -l out/arch/arm64/boot/ || true
           ls -l out/arch/arm64/boot/dts/mediatek/ 2>/dev/null | head -20 || true
@@ -285,9 +288,21 @@ jobs:
             artifacts/modules/*
           draft: false
 
+      - name: 发布日志（无论成败，日志都进这个 release）
+        if: always()
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ci-logs
+          name: "CI logs (latest)"
+          body: "run ${{ github.run_number }} / ${{ inputs.release_tag }}"
+          files: artifacts/build.log
+          prerelease: true
+
       - name: 备用 artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: ares-kernel-${{ env.KERNELRELEASE }}
+          name: ares-kernel-run${{ github.run_number }}
           path: artifacts/*
           compression-level: 9
+          if-no-files-found: warn
