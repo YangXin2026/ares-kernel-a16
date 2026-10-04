@@ -29,6 +29,11 @@ on:
         description: 'GPU 最高档电压（mVx100，原厂 80000；935MHz 建议 86250）'
         required: true
         default: '80000'
+      enable_wireguard:
+        description: '额外编 WireGuard 模块（out-of-tree compat .ko）'
+        type: boolean
+        required: true
+        default: false
       enable_bbg:
         description: '编入 Baseband-guard（可跳过，减少失败点）'
         type: boolean
@@ -161,6 +166,21 @@ jobs:
           ls -l out/arch/arm64/boot/ || true
           ls -l out/arch/arm64/boot/dts/mediatek/ 2>/dev/null | head -20 || true
           echo "KERNELRELEASE=$(cat out/include/config/kernel.release 2>/dev/null || make -s O=out kernelrelease)" >> $GITHUB_ENV
+
+      - name: WireGuard 模块（out-of-tree）
+        if: ${{ inputs.enable_wireguard }}
+        continue-on-error: true
+        working-directory: kernel
+        run: |
+          set -x
+          git clone --depth 1 https://github.com/WireGuard/wireguard-linux-compat wgcompat
+          make -j$(nproc --all) -C "$PWD" M="$PWD/wgcompat/src" O="$PWD/out" \
+            ARCH=arm64 LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- CC=clang LD=ld.lld modules || \
+          make -j$(nproc --all) -C "$PWD" M="$PWD/wgcompat/src" \
+            ARCH=arm64 LLVM=1 CROSS_COMPILE=aarch64-linux-gnu- CC=clang LD=ld.lld modules
+          mkdir -p $GITHUB_WORKSPACE/artifacts/modules
+          find . -name 'wireguard.ko' -exec cp {} $GITHUB_WORKSPACE/artifacts/modules/ \;
+          ls -l $GITHUB_WORKSPACE/artifacts/modules || true
 
       - name: 打包产物
         working-directory: kernel
