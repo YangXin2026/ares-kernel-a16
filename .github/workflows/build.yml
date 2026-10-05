@@ -204,6 +204,8 @@ jobs:
           if [ "${{ inputs.gsi_extra }}" = "true" ]; then
             cat $GITHUB_WORKSPACE/buildfiles/Patches/ares_gsi_defconfig_append >> arch/arm64/configs/ares_defconfig
           fi
+          # 黑匣子批次（始终应用：AEE/pstore/panic 自动重启，保证"起不来"时留下证据）
+          cat $GITHUB_WORKSPACE/buildfiles/Patches/ares_blackbox_defconfig_append >> arch/arm64/configs/ares_defconfig
           if [ "${{ inputs.enable_bbg }}" != "true" ]; then
             sed -i '/^CONFIG_BBG=y$/d' arch/arm64/configs/ares_defconfig
           fi
