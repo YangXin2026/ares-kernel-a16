@@ -1,8 +1,6 @@
-# ============ ares 游戏性能化 + 功能堆料（4.14.357）============
-# 说明：不存在的符号 kconfig 会自动忽略，不会让编译失败。
-# 禁止触碰：dm-verity / dm-crypt（AVB）、MTK thermal（硬件 117°C 保护）——本文件不涉及。
-
-# ---------- 调度 / 延迟 ----------
+﻿# ============ ares 娓告垙鎬ц兘鍖?+ 鍔熻兘鍫嗘枡锛?.14.357锛?===========
+# 璇存槑锛氫笉瀛樺湪鐨勭鍙?kconfig 浼氳嚜鍔ㄥ拷鐣ワ紝涓嶄細璁╃紪璇戝け璐ャ€?# 绂佹瑙︾锛歞m-verity / dm-crypt锛圓VB锛夈€丮TK thermal锛堢‖浠?117掳C 淇濇姢锛夆€斺€旀湰鏂囦欢涓嶆秹鍙娿€?
+# ---------- 璋冨害 / 寤惰繜 ----------
 CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL=y
 CONFIG_CPU_FREQ_GOV_PERFORMANCE=y
 CONFIG_CPU_FREQ_GOV_ONDEMAND=y
@@ -21,7 +19,7 @@ CONFIG_UCLAMP_TASK_GROUP=y
 CONFIG_CPU_IDLE=y
 CONFIG_ARM64_LSE_ATOMICS=y
 
-# ---------- 内存 / 压缩 swap ----------
+# ---------- 鍐呭瓨 / 鍘嬬缉 swap ----------
 CONFIG_ZSWAP=y
 CONFIG_ZRAM=y
 CONFIG_ZRAM_LZ4_COMPRESS=y
@@ -42,7 +40,7 @@ CONFIG_KSM_LEGACY=y
 CONFIG_SWAP=y
 CONFIG_FRONTSWAP=y
 
-# ---------- IO 调度（低延迟优先）----------
+# ---------- IO 璋冨害锛堜綆寤惰繜浼樺厛锛?---------
 CONFIG_IOSCHED_BFQ=y
 CONFIG_BFQ_GROUP_IOSCHED=y
 CONFIG_MQ_IOSCHED_KYBER=y
@@ -55,7 +53,7 @@ CONFIG_BLK_DEV_THROTTLING=y
 CONFIG_BLK_WBT=y
 CONFIG_BLK_WBT_MQ=y
 
-# ---------- F2FS（/data 常用）----------
+# ---------- F2FS锛?data 甯哥敤锛?---------
 CONFIG_F2FS_FS=y
 CONFIG_F2FS_STAT_FS=n
 CONFIG_F2FS_FS_XATTR=y
@@ -68,7 +66,7 @@ CONFIG_F2FS_FS_LZ4=y
 CONFIG_F2FS_FS_LZ4HC=y
 CONFIG_F2FS_FS_LZORLE=y
 
-# ---------- 其它文件系统（模拟器/容器/外置盘）----------
+# ---------- 鍏跺畠鏂囦欢绯荤粺锛堟ā鎷熷櫒/瀹瑰櫒/澶栫疆鐩橈級----------
 CONFIG_FUSE_FS=y
 CONFIG_CUSE=y
 CONFIG_OVERLAY_FS=y
@@ -83,13 +81,12 @@ CONFIG_EXFAT_FS=y
 CONFIG_NTFS_FS=y
 CONFIG_NTFS_RW=y
 CONFIG_CIFS=y
-CONFIG_NFS_FS=y
 CONFIG_BLK_DEV_LOOP=y
 CONFIG_BLK_DEV_LOOP_MIN_COUNT=16
 CONFIG_BLK_DEV_NBD=y
 CONFIG_BLK_DEV_RAM=y
 
-# ---------- 网络（游戏延迟 / VPN / 串流）----------
+# ---------- 缃戠粶锛堟父鎴忓欢杩?/ VPN / 涓叉祦锛?---------
 CONFIG_TCP_CONG_BBR=y
 CONFIG_DEFAULT_BBR=y
 CONFIG_TCP_CONG_CUBIC=y
@@ -121,7 +118,7 @@ CONFIG_VETH=y
 CONFIG_MACVLAN=y
 CONFIG_VXLAN=y
 
-# ---------- 手柄 / 外设 / USB ----------
+# ---------- 鎵嬫焺 / 澶栬 / USB ----------
 CONFIG_INPUT_UINPUT=y
 CONFIG_INPUT_FF_MEMLESS=y
 CONFIG_INPUT_JOYSTICK=y
@@ -150,7 +147,7 @@ CONFIG_USB_DWC3=y
 CONFIG_USB_STORAGE=y
 CONFIG_USB_HID=y
 
-# ---------- 容器 / 虚拟化（DroidSpaces / Waydroid / KVM）----------
+# ---------- 瀹瑰櫒 / 铏氭嫙鍖栵紙DroidSpaces / Waydroid / KVM锛?---------
 CONFIG_NAMESPACES=y
 CONFIG_USER_NS=y
 CONFIG_PID_NS=y
@@ -175,7 +172,7 @@ CONFIG_VHOST_VSOCK=y
 CONFIG_TUN=y
 CONFIG_ANDROID_PARANOID_NETWORK=n
 
-# ---------- 兼容性 / 老 App / 模拟器 ----------
+# ---------- 鍏煎鎬?/ 鑰?App / 妯℃嫙鍣?----------
 CONFIG_ASHMEM=y
 CONFIG_ANDROID=y
 CONFIG_ANDROID_BINDER_IPC=y
@@ -192,7 +189,7 @@ CONFIG_TMPFS_XATTR=y
 CONFIG_FW_LOADER_USER_HELPER=y
 CONFIG_FW_LOADER_COMPRESS=y
 
-# ---------- 调试/隐藏（KernelSU 需要）----------
+# ---------- 璋冭瘯/闅愯棌锛圞ernelSU 闇€瑕侊級----------
 CONFIG_KALLSYMS=y
 CONFIG_KALLSYMS_ALL=y
 CONFIG_KALLSYMS_SELFTEST=n
@@ -200,32 +197,25 @@ CONFIG_DEBUG_INFO=n
 CONFIG_DEBUG_KERNEL=n
 CONFIG_MAGIC_SYSRQ=y
 
-# ================= 第二轮：用户勾选的加餐（对话框确认）=================
-# --- 省内存（KSM + FRONTSWAP）---
+# ================= 绗簩杞細鐢ㄦ埛鍕鹃€夌殑鍔犻锛堝璇濇纭锛?================
+# --- 鐪佸唴瀛橈紙KSM + FRONTSWAP锛?--
 CONFIG_KSM=y
 CONFIG_FRONTSWAP=y
 CONFIG_ZSWAP=n
 
-# --- 外来二进制格式 ---
+# --- 澶栨潵浜岃繘鍒舵牸寮?---
 CONFIG_BINFMT_MISC=y
 
-# --- squashfs 只读镜像 ---
+# --- squashfs 鍙闀滃儚 ---
 CONFIG_SQUASHFS=y
 CONFIG_SQUASHFS_XZ=y
 CONFIG_SQUASHFS_LZ4=y
 CONFIG_SQUASHFS_ZSTD=y
 CONFIG_SQUASHFS_LZO=y
 
-# --- 局域网共享：CIFS/NFS/NTFS/NBD ---
+# --- 灞€鍩熺綉鍏变韩锛欳IFS/NFS/NTFS/NBD ---
 CONFIG_NETWORK_FILESYSTEMS=y
 CONFIG_CIFS=y
-CONFIG_NFS_FS=y
-CONFIG_NFS_V3=y
-CONFIG_NFS_V3_ACL=y
-CONFIG_NFS_V4=y
-CONFIG_ROOT_NFS=n
-CONFIG_LOCKD=y
-CONFIG_SUNRPC=y
 CONFIG_NTFS_FS=y
 CONFIG_NTFS_RW=y
 CONFIG_BLK_DEV_NBD=y
@@ -233,13 +223,13 @@ CONFIG_BLK_DEV_NBD=y
 # --- CUSE ---
 CONFIG_CUSE=y
 
-# --- 容器/虚拟机网络 ---
+# --- 瀹瑰櫒/铏氭嫙鏈虹綉缁?---
 CONFIG_MACVLAN=y
 CONFIG_VXLAN=y
 CONFIG_VHOST_NET=y
 CONFIG_VHOST=m
 
-# --- BFQ 本体（MTK 走 blk-mq，可能用不上；DEFAULT 仍是 cfq，运行时切 kyber）---
+# --- BFQ 鏈綋锛圡TK 璧?blk-mq锛屽彲鑳界敤涓嶄笂锛汥EFAULT 浠嶆槸 cfq锛岃繍琛屾椂鍒?kyber锛?--
 CONFIG_IOSCHED_BFQ=y
 CONFIG_BFQ_GROUP_IOSCHED=y
 CONFIG_DEFAULT_BFQ=n
