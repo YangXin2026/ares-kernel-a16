@@ -152,6 +152,10 @@ jobs:
             patch -p1 --forward < $GITHUB_WORKSPACE/buildfiles/Patches/fix_restore_cgroup_file_prefix_handling.patch || echo "::warning::cgroup 补丁未应用"
           fi
 
+      - name: 原厂树小修（缺 include 之类，幂等）
+        working-directory: kernel
+        run: python3 $GITHUB_WORKSPACE/buildfiles/Patches/tree_fixups.py .
+
       - name: 补 KSU 手工 hook（原厂树缺钩子调用点）
         if: ${{ inputs.enable_ksu }}
         working-directory: kernel
