@@ -1,0 +1,27 @@
+# ares 黑匣子批次 —— 让"没起来"这件事留下证据
+# 背景：官方 A13 靶场上刷外来内核时会直接落到 fastboot，内核日志拿不到（/proc/last_kmsg 只有 2KB SRAM 头，
+#       pstore 为空），排查全靠猜。MTK 平台自带两个真正的黑匣子：
+#         1) AEE (Android Exception Enhancement)：panic 时把日志/现场写进 expdb 分区，重启后还在
+#         2) PSTORE/ramoops：通用持久化存储
+# 这些配置只增加"记录能力"，不改任何调优行为，所以对所有变体都开。
+
+# ===== 1. MTK AEE（原生黑匣子：panic -> expdb 分区）=====
+CONFIG_MTK_AEE_FEATURE=y
+CONFIG_MTK_AEE_AED=y
+CONFIG_MTK_AEE_IPANIC=y
+CONFIG_MTK_AEE_HANG_DETECT=y
+
+# ===== 2. PSTORE / ramoops（通用持久化内核日志）=====
+CONFIG_PSTORE=y
+CONFIG_PSTORE_RAM=y
+CONFIG_PSTORE_CONSOLE=y
+CONFIG_PSTORE_PMSG=y
+
+# ===== 3. panic 后自动重启（否则设备挂在黑屏上，我们连 adb 都拿不到）=====
+CONFIG_PANIC_TIMEOUT=10
+
+# ===== 4. 常用可观测性 =====
+CONFIG_MAGIC_SYSRQ=y
+CONFIG_DEBUG_FS=y
+CONFIG_PROC_KCORE=y
+CONFIG_SCHED_DEBUG=y
