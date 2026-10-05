@@ -1,0 +1,27 @@
+# ============ 第一批：官方存在但被关掉的高价值开关（低风险）============
+# 全部来自基线配置里"源码有、但没开"的清单（E:\_build\待开启开关清单.md，共 742 项）
+# 原则：一次只开一批，编过再开下一批；这一批每一项都是"官方原生能力"，不是外挂补丁。
+
+# --- MTK 原生加速（最关键的两个）---
+CONFIG_MTK_IO_BOOST=y
+CONFIG_MTK_PERFMGR_TOUCH_BOOST=y
+
+# --- 内存：同页合并 + 交换前端 ---
+CONFIG_KSM=y
+CONFIG_FRONTSWAP=y
+
+# --- 调度：频率无关缩放（小补）---
+CONFIG_HMP_FREQUENCY_INVARIANT_SCALE=y
+
+# --- 文件系统：squashfs + erofs 单核线程优化 ---
+CONFIG_SQUASHFS=y
+CONFIG_SQUASHFS_XZ=y
+CONFIG_SQUASHFS_LZ4=y
+CONFIG_EROFS_FS_PCPU_KTHREAD=y
+
+# --- BPF 辅助（对 A16 的网络/统计类 BPF 有帮助）---
+CONFIG_BPF_STREAM_PARSER=y
+CONFIG_BPF_PRELOAD=y
+
+# --- 明确别用 PSI 的关闭默认（PSI 保持开着）---
+CONFIG_PSI_DEFAULT_DISABLED=n
