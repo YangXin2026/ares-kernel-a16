@@ -152,6 +152,19 @@ jobs:
             patch -p1 --forward < $GITHUB_WORKSPACE/buildfiles/Patches/fix_restore_cgroup_file_prefix_handling.patch || echo "::warning::cgroup 补丁未应用"
           fi
 
+      - name: 补 KSU 手工 hook（原厂树缺钩子调用点）
+        if: ${{ inputs.enable_ksu }}
+        working-directory: kernel
+        run: |
+          python3 $GITHUB_WORKSPACE/buildfiles/Patches/ksu_hooks.py .
+          echo "=== 打完钩子后的确认 ==="
+          for pair in "fs/exec.c:ksu_handle_execveat" "fs/open.c:ksu_handle_faccessat" \
+                      "fs/stat.c:ksu_handle_stat" "fs/stat.c:ksu_handle_newfstat_ret" \
+                      "fs/stat.c:ksu_handle_fstat64_ret" "kernel/reboot.c:ksu_handle_sys_reboot"; do
+            f=${pair%%:*}; s=${pair##*:}
+            if grep -q "$s" "$f"; then echo "  OK   $f: $s"; else echo "  MISS $f: $s"; exit 1; fi
+          done
+
       - name: 打入 Baseband-guard
         if: ${{ inputs.enable_bbg }}
         working-directory: kernel
