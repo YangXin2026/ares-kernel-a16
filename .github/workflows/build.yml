@@ -29,6 +29,10 @@ on:
         type: boolean
         required: true
         default: true
+      defconfig_source:
+        description: 'known_good = 用「已验证能启动的 ares 4.14.336 配置」当底（稳）；tree_ares = 用树里的 ares_defconfig（料多但风险高）'
+        required: true
+        default: 'tree_ares'
       enable_boost:
         description: '第一批加速批次（MTK IO/触控 boost + KSM/FRONTSWAP + squashfs，低风险）'
         type: boolean
@@ -190,19 +194,30 @@ jobs:
       - name: 追加 defconfig + 署名
         run: |
           cd kernel
-          # 基础追加（来自已验证配方）
-          cat $GITHUB_WORKSPACE/buildfiles/Patches/ares_user_defconfig_append >> arch/arm64/configs/ares_defconfig
-          # 游戏化/功能堆料（之前漏掉了！）
-          if [ "${{ inputs.enable_gaming }}" = "true" ]; then
-            cat $GITHUB_WORKSPACE/buildfiles/Patches/ares_gaming_defconfig_append >> arch/arm64/configs/ares_defconfig
+          KNOWN_GOOD=""
+          if [ "${{ inputs.defconfig_source }}" = "known_good" ]; then
+            KNOWN_GOOD=1
+            echo "=== 用「已验证能启动的 ares 4.14.336 配置」当底（稳定优先）==="
+            cp $GITHUB_WORKSPACE/buildfiles/Patches/ares_defconfig_known_good arch/arm64/configs/ares_defconfig
+            wc -l arch/arm64/configs/ares_defconfig
           fi
-          # 第一批加速批次（低风险：MTK IO/触控 boost 等）
-          if [ "${{ inputs.enable_boost }}" = "true" ]; then
-            cat $GITHUB_WORKSPACE/buildfiles/Patches/ares_boost_defconfig_append >> arch/arm64/configs/ares_defconfig
-          fi
-          # GSI 专用特性批次（第二批：把能开的功能尽量开齐，已剔除冲突项）
-          if [ "${{ inputs.gsi_extra }}" = "true" ]; then
-            cat $GITHUB_WORKSPACE/buildfiles/Patches/ares_gsi_defconfig_append >> arch/arm64/configs/ares_defconfig
+          if [ -z "$KNOWN_GOOD" ]; then
+            # 基础追加（来自已验证配方）
+            cat $GITHUB_WORKSPACE/buildfiles/Patches/ares_user_defconfig_append >> arch/arm64/configs/ares_defconfig
+            # 游戏化/功能堆料（之前漏掉了！）
+            if [ "${{ inputs.enable_gaming }}" = "true" ]; then
+              cat $GITHUB_WORKSPACE/buildfiles/Patches/ares_gaming_defconfig_append >> arch/arm64/configs/ares_defconfig
+            fi
+            # 第一批加速批次（低风险：MTK IO/触控 boost 等）
+            if [ "${{ inputs.enable_boost }}" = "true" ]; then
+              cat $GITHUB_WORKSPACE/buildfiles/Patches/ares_boost_defconfig_append >> arch/arm64/configs/ares_defconfig
+            fi
+            # GSI 专用特性批次（第二批：把能开的功能尽量开齐，已剔除冲突项）
+            if [ "${{ inputs.gsi_extra }}" = "true" ]; then
+              cat $GITHUB_WORKSPACE/buildfiles/Patches/ares_gsi_defconfig_append >> arch/arm64/configs/ares_defconfig
+            fi
+          else
+            echo "(known_good 模式：跳过 user/gaming/boost/gsi 四份追加，只保留 KSU + 署名 + 黑匣子)"
           fi
           # 黑匣子批次（始终应用：AEE/pstore/panic 自动重启，保证"起不来"时留下证据）
           cat $GITHUB_WORKSPACE/buildfiles/Patches/ares_blackbox_defconfig_append >> arch/arm64/configs/ares_defconfig
@@ -249,6 +264,15 @@ jobs:
           ls -l out/arch/arm64/boot/ || true
           ls -l out/arch/arm64/boot/dts/mediatek/ 2>/dev/null | head -20 || true
           echo "KERNELRELEASE=$(cat out/include/config/kernel.release 2>/dev/null || make -s O=out kernelrelease)" >> $GITHUB_ENV
+
+      - name: 导出生效配置（跟"已验证配置"对比用；失败也导出）
+        if: always()
+        working-directory: kernel
+        run: |
+          mkdir -p $GITHUB_WORKSPACE/artifacts
+          cp out/.config $GITHUB_WORKSPACE/artifacts/config-effective 2>/dev/null && echo "config 已导出" || echo "(没有 out/.config)"
+          cp out/include/config/kernel.release $GITHUB_WORKSPACE/artifacts/kernel-release 2>/dev/null || true
+          cat $GITHUB_WORKSPACE/artifacts/kernel-release 2>/dev/null || true
 
       - name: 编译内核模块 (.ko)
         if: ${{ inputs.build_modules }}
@@ -371,7 +395,11 @@ jobs:
           tag_name: ci-logs
           name: "CI logs (latest)"
           body: "run ${{ github.run_number }} / ${{ inputs.release_tag }}"
-          files: artifacts/build.log
+          files: |
+            artifacts/build.log
+            artifacts/config-effective
+            artifacts/kernel-release
+            artifacts/vermagic.txt
           prerelease: true
 
       - name: 备用 artifact
