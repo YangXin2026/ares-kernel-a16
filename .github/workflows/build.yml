@@ -47,6 +47,16 @@ on:
         type: boolean
         required: true
         default: false
+      build_modules:
+        description: '编译内核模块 (.ko) 并打包 —— GSI 必需：WiFi/蓝牙/指纹/触控/连接都靠它，且我们改了版本串后必须自带模块'
+        type: boolean
+        required: true
+        default: true
+      gsi_extra:
+        description: '追加 GSI 专用特性批次（Patches/ares_gsi_defconfig_append）'
+        type: boolean
+        required: true
+        default: false
       enable_bbg:
         description: '编入 Baseband-guard（可跳过，减少失败点）'
         type: boolean
@@ -173,6 +183,10 @@ jobs:
           if [ "${{ inputs.enable_boost }}" = "true" ]; then
             cat $GITHUB_WORKSPACE/buildfiles/Patches/ares_boost_defconfig_append >> arch/arm64/configs/ares_defconfig
           fi
+          # GSI 专用特性批次（第二批：把能开的功能尽量开齐，已剔除冲突项）
+          if [ "${{ inputs.gsi_extra }}" = "true" ]; then
+            cat $GITHUB_WORKSPACE/buildfiles/Patches/ares_gsi_defconfig_append >> arch/arm64/configs/ares_defconfig
+          fi
           if [ "${{ inputs.enable_bbg }}" != "true" ]; then
             sed -i '/^CONFIG_BBG=y$/d' arch/arm64/configs/ares_defconfig
           fi
@@ -216,6 +230,40 @@ jobs:
           ls -l out/arch/arm64/boot/ || true
           ls -l out/arch/arm64/boot/dts/mediatek/ 2>/dev/null | head -20 || true
           echo "KERNELRELEASE=$(cat out/include/config/kernel.release 2>/dev/null || make -s O=out kernelrelease)" >> $GITHUB_ENV
+
+      - name: 编译内核模块 (.ko)
+        if: ${{ inputs.build_modules }}
+        working-directory: kernel
+        run: |
+          set -o pipefail
+          mkdir -p $GITHUB_WORKSPACE/artifacts
+          export KBUILD_BUILD_TIMESTAMP=$(date)
+          export KBUILD_BUILD_USER=YangXin2026
+          export KBUILD_BUILD_HOST=ares-build
+          export PATH=/usr/lib/ccache:$PATH
+          make -j$(nproc --all) O=out ARCH=arm64 LLVM=1 \
+            CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            CC=clang LD=ld.lld KCFLAGS+=-O2 modules 2>&1 \
+            | tee -a $GITHUB_WORKSPACE/artifacts/modules.log | tail -40
+          KOCOUNT=$(find out -name '*.ko' | wc -l)
+          echo "编出模块数: $KOCOUNT"
+          echo "KOCOUNT=$KOCOUNT" >> $GITHUB_ENV
+          echo "===== vermagic (GSI 能否加载模块就看它) ====="
+          KO=$(find out -name '*.ko' | head -1)
+          strings "$KO" | grep -m1 '^vermagic=' | tee $GITHUB_WORKSPACE/artifacts/vermagic.txt || true
+          KREL=$(cat out/include/config/kernel.release 2>/dev/null || echo unknown)
+          echo "kernel.release = $KREL" | tee -a $GITHUB_WORKSPACE/artifacts/vermagic.txt
+          echo "ko_count = $KOCOUNT" | tee -a $GITHUB_WORKSPACE/artifacts/vermagic.txt
+          echo "===== 关键模块是否编出 (WiFi/蓝牙/指纹/连接/性能) ====="
+          for n in wlan_drv_gen4m bt_drv_6893 connfem conninfra gps_drv fpsgo sla met wmt_chrdev_wifi; do
+            f=$(find out -name "$n.ko" | head -1)
+            if [ -n "$f" ]; then echo "  OK   $n -> $f"; else echo "  MISS $n"; fi
+          done | tee -a $GITHUB_WORKSPACE/artifacts/vermagic.txt
+          echo "===== 打包模块 (保留目录结构 + 依赖清单) ====="
+          ( cd out && find . \( -name '*.ko' -o -name 'modules.order' -o -name 'modules.builtin' \) -print0 \
+              | tar --null -czf $GITHUB_WORKSPACE/artifacts/modules-${KREL}.tar.gz -T - ) || true
+          ls -l $GITHUB_WORKSPACE/artifacts/ || true
+          tar -tzf $GITHUB_WORKSPACE/artifacts/modules-${KREL}.tar.gz 2>/dev/null | head -20 || true
 
       - name: WireGuard 模块（out-of-tree）
         if: ${{ inputs.enable_wireguard }}
