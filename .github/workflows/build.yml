@@ -29,6 +29,11 @@ on:
         type: boolean
         required: true
         default: true
+      enable_boost:
+        description: '第一批加速批次（MTK IO/触控 boost + KSM/FRONTSWAP + squashfs，低风险）'
+        type: boolean
+        required: true
+        default: false
       gpu_max_freq:
         description: 'GPU 最高频 KHz（原厂 886000；935000=小超；上限 950000 由时钟路径锁死）'
         required: true
@@ -163,6 +168,10 @@ jobs:
           # 游戏化/功能堆料（之前漏掉了！）
           if [ "${{ inputs.enable_gaming }}" = "true" ]; then
             cat $GITHUB_WORKSPACE/buildfiles/Patches/ares_gaming_defconfig_append >> arch/arm64/configs/ares_defconfig
+          fi
+          # 第一批加速批次（低风险：MTK IO/触控 boost 等）
+          if [ "${{ inputs.enable_boost }}" = "true" ]; then
+            cat $GITHUB_WORKSPACE/buildfiles/Patches/ares_boost_defconfig_append >> arch/arm64/configs/ares_defconfig
           fi
           if [ "${{ inputs.enable_bbg }}" != "true" ]; then
             sed -i '/^CONFIG_BBG=y$/d' arch/arm64/configs/ares_defconfig
