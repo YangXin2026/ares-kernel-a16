@@ -25,3 +25,14 @@ CONFIG_MAGIC_SYSRQ=y
 CONFIG_DEBUG_FS=y
 CONFIG_PROC_KCORE=y
 CONFIG_SCHED_DEBUG=y
+
+# ===== 5. MTK 连接子系统（必须补齐，否则 WiFi 驱动报 Unsuppoted HIF 直接 Stop）=====
+# 树内 ares_defconfig 本来有 CONFIG_MTK_COMBO=y；但从"已验证配置"（抠出来的完整 .config）起底时
+# 这一项缺失，导致 gen4m/Makefile 拿到空的 HIF 值而报错。这里统一补齐，两种起底方式都安全。
+CONFIG_MTK_COMBO=y
+CONFIG_MTK_COMBO_WIFI=y
+CONFIG_MTK_COMBO_BT=y
+CONFIG_MTK_COMBO_GPS=y
+CONFIG_MTK_COMBO_CHIP="CONSYS_6893"
+CONFIG_MTK_COMBO_CHIP_CONSYS_6893=y
+CONFIG_MTK_COMBO_WIFI_HIF="axi"
