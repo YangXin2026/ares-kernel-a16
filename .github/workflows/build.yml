@@ -258,7 +258,7 @@ jobs:
           export PATH=/usr/lib/ccache:$PATH
           make -j$(nproc --all) O=out ARCH=arm64 LLVM=1 \
             CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            CC=clang LD=ld.lld HOSTLD=ld.lld KCFLAGS+=-O2 ares_defconfig all 2>&1 \
+            CC=clang LD=ld.lld HOSTLD=ld.lld KCFLAGS+=-O2 CONFIG_MTK_COMBO_WIFI_HIF=axi ares_defconfig all 2>&1 \
             | tee -a $GITHUB_WORKSPACE/artifacts/build.log | tail -80
           echo "=== 产物 ==="
           ls -l out/arch/arm64/boot/ || true
